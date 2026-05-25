@@ -1,0 +1,10 @@
+{
+  "name": "ayush-ashish-medicine-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Ayush & Ashish Medicine Distributors inventory system",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs"
+  }
+}
