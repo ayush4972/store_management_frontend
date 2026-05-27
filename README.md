@@ -22,3 +22,25 @@ Admin@123
 ```
 
 The API base URL is configured in `config.js`.
+
+## Structure
+
+```text
+js/
+  api.js
+  app.js
+  state.js
+  utils.js
+  pages/
+    dashboard.js
+    expenses.js
+    inventory.js
+    ledger.js
+    login.js
+    master.js
+    payments.js
+    purchases.js
+    reports.js
+    sales.js
+    users.js
+```
