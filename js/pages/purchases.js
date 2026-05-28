@@ -1,6 +1,7 @@
 import { api, loadLookups } from "../api.js";
+import { bindPartyPickers, bindProductPickers, partyPicker, productPicker } from "../inlineCreate.js";
 import { emptyPurchaseItem, state } from "../state.js";
-import { bindSubmit, escapeHtml, fieldWrap, input, money, normalizeNumbers, optionList, select, selectFrom, table, today, toast, dateOnly } from "../utils.js";
+import { bindSubmit, escapeHtml, fieldWrap, input, money, normalizeNumbers, select, table, today, toast, dateOnly } from "../utils.js";
 
 export async function renderPurchases(content, renderPage) {
   await loadLookups();
@@ -17,7 +18,7 @@ export async function renderPurchases(content, renderPage) {
         <div class="section-head"><div><h2>New Purchase</h2><p>Stock increases automatically by batch after saving.</p></div></div>
         <div class="field-grid">
           ${input("bill_no", "Purchase Bill No.", next.bill_no)}
-          ${selectFrom("supplier_id", "Supplier", suppliers, "id", "name")}
+          ${partyPicker({ name: "supplier_id", label: "Supplier", items: suppliers, partyType: "supplier", datalistId: "purchase-suppliers" })}
           ${input("purchase_date", "Purchase Date", today(), "date")}
           ${select("payment_mode", "Payment Mode", [["credit", "Credit"], ["cash", "Cash"], ["bank", "Bank"]], "credit")}
           ${input("paid_amount", "Paid Amount", "0", "number")}
@@ -41,7 +42,7 @@ export async function renderPurchases(content, renderPage) {
 function purchaseLine(item, index, products) {
   return `
     <div class="line-item" data-line="${index}">
-      ${fieldWrap("Product", `<select data-purchase-field="product_id">${optionList(products, "id", "product_name", item.product_id)}</select>`)}
+      ${productPicker({ fieldName: "product_id", items: products, selectedId: item.product_id, datalistId: `purchase-products-${index}`, context: "purchase", index })}
       ${fieldWrap("Batch No.", `<input data-purchase-field="batch_no" value="${escapeHtml(item.batch_no)}" />`)}
       ${fieldWrap("MFG", `<input type="date" data-purchase-field="mfg_date" value="${escapeHtml(item.mfg_date)}" />`)}
       ${fieldWrap("EXP", `<input type="date" data-purchase-field="expiry_date" value="${escapeHtml(item.expiry_date)}" />`)}
@@ -58,6 +59,12 @@ function purchaseLine(item, index, products) {
 }
 
 function bindPurchaseEvents(renderPage) {
+  bindPartyPickers({ parties: state.data.parties || [] });
+  bindProductPickers({
+    products: state.data.products || [],
+    onCreated: applyPurchaseProduct,
+    onSelected: applyPurchaseProduct
+  });
   document.querySelectorAll("[data-purchase-field]").forEach((input) => {
     input.addEventListener("input", updatePurchaseState);
     input.addEventListener("change", updatePurchaseState);
@@ -89,6 +96,20 @@ function bindPurchaseEvents(renderPage) {
     await loadLookups();
     await renderPage();
   });
+}
+
+function applyPurchaseProduct(picker, product) {
+  const line = picker.closest("[data-line]");
+  if (!line || !product) return;
+  const setIfBlank = (field, value) => {
+    const input = line.querySelector(`[data-purchase-field="${field}"]`);
+    if (input && (!input.value || Number(input.value) === 0)) input.value = value ?? "";
+  };
+  setIfBlank("purchase_rate", product.purchase_rate);
+  setIfBlank("sale_rate", product.sale_rate);
+  setIfBlank("mrp", product.mrp || product.sale_rate);
+  setIfBlank("vat_percent", product.vat_percent);
+  updatePurchaseState();
 }
 
 function updatePurchaseState() {

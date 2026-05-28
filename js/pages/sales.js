@@ -1,6 +1,7 @@
 import { api, loadLookups } from "../api.js";
+import { bindPartyPickers, bindProductPickers, partyPicker, productPicker } from "../inlineCreate.js";
 import { emptySaleItem, state } from "../state.js";
-import { bindSubmit, dateOnly, escapeHtml, fieldWrap, input, money, normalizeNumbers, optionList, select, selectFrom, table, today, toast } from "../utils.js";
+import { bindSubmit, dateOnly, escapeHtml, fieldWrap, input, money, normalizeNumbers, optionList, select, table, today, toast } from "../utils.js";
 
 export async function renderSales(content, renderPage) {
   await loadLookups();
@@ -19,7 +20,7 @@ export async function renderSales(content, renderPage) {
         <div class="section-head"><div><h2>New Sales Invoice</h2><p>Stock is reduced from the selected batch after saving.</p></div></div>
         <div class="field-grid">
           ${input("bill_no", "Sales Bill No.", next.bill_no)}
-          ${selectFrom("customer_id", "Customer", customers, "id", "name")}
+          ${partyPicker({ name: "customer_id", label: "Customer", items: customers, partyType: "customer", datalistId: "sale-customers" })}
           ${input("customer_name", "Walk-in Name")}
           ${input("sale_date", "Date", today(), "date")}
           ${select("payment_mode", "Payment Mode", [["cash", "Cash"], ["bank", "Bank"], ["credit", "Credit"]])}
@@ -44,7 +45,7 @@ function saleLine(item, index, products, batches) {
   const filteredBatches = item.product_id ? batches.filter((b) => String(b.product_id) === String(item.product_id)) : batches;
   return `
     <div class="line-item sales-line" data-sale-line="${index}">
-      ${fieldWrap("Product", `<select data-sale-field="product_id">${optionList(products, "id", "product_name", item.product_id)}</select>`)}
+      ${productPicker({ fieldName: "product_id", items: products, selectedId: item.product_id, datalistId: `sale-products-${index}`, context: "sale", index })}
       ${fieldWrap("Batch", `<select data-sale-field="stock_id">${optionList(filteredBatches, "id", "batch_no", item.stock_id, "Select batch")}</select>`)}
       ${fieldWrap("Qty", `<input type="number" min="1" data-sale-field="quantity" value="${escapeHtml(item.quantity)}" />`)}
       ${fieldWrap("Rate", `<input type="number" min="0" data-sale-field="sale_rate" value="${escapeHtml(item.sale_rate)}" />`)}
@@ -55,6 +56,12 @@ function saleLine(item, index, products, batches) {
 }
 
 function bindSaleEvents(renderPage) {
+  bindPartyPickers({ parties: state.data.parties || [] });
+  bindProductPickers({
+    products: state.data.products || [],
+    onCreated: applySaleProduct,
+    onSelected: applySaleProduct
+  });
   document.querySelectorAll("[data-sale-field]").forEach((input) => {
     input.addEventListener("change", () => {
       updateSaleState();
@@ -96,6 +103,18 @@ function bindSaleEvents(renderPage) {
     await loadLookups();
     await renderPage();
   });
+}
+
+function applySaleProduct(picker, product) {
+  const line = picker.closest("[data-sale-line]");
+  if (!line || !product) return;
+  const setIfBlank = (field, value) => {
+    const input = line.querySelector(`[data-sale-field="${field}"]`);
+    if (input && (!input.value || Number(input.value) === 0)) input.value = value ?? "";
+  };
+  setIfBlank("sale_rate", product.sale_rate);
+  setIfBlank("vat_percent", product.vat_percent);
+  updateSaleState();
 }
 
 function updateSaleState() {
